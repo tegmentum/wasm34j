@@ -4,20 +4,26 @@ import ai.tegmentum.wasm34j.WebAssemblyFunction;
 import ai.tegmentum.wasm34j.WebAssemblyInstance;
 import ai.tegmentum.wasm34j.panama.internal.Wasm3Library;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
 /**
  * Panama-backed {@link WebAssemblyInstance}, wrapping a wasm3 {@code IM3Runtime} pointer
- * into which a module has been loaded. Closing frees the native runtime.
+ * into which a module has been loaded, plus the {@link Arena} holding that module's bytes.
+ *
+ * <p>Closing frees the native runtime (which frees the loaded module) and then closes the
+ * arena, in that order.
  */
 final class PanamaWasmInstance implements WebAssemblyInstance {
 
     private final MemorySegment runtime;
+    private final Arena moduleArena;
     private boolean closed;
 
-    PanamaWasmInstance(final MemorySegment runtime) {
+    PanamaWasmInstance(final MemorySegment runtime, final Arena moduleArena) {
         this.runtime = runtime;
+        this.moduleArena = moduleArena;
     }
 
     @Override
@@ -28,9 +34,11 @@ final class PanamaWasmInstance implements WebAssemblyInstance {
 
     @Override
     public void close() {
-        if (!closed) {
-            closed = true;
-            Wasm3Library.freeRuntime(runtime);
+        if (closed) {
+            return;
         }
+        closed = true;
+        Wasm3Library.freeRuntime(runtime);
+        moduleArena.close();
     }
 }

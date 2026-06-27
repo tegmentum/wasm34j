@@ -5,6 +5,7 @@ import ai.tegmentum.wasm34j.WebAssemblyRuntime;
 import ai.tegmentum.wasm34j.exception.WasmException;
 import ai.tegmentum.wasm34j.panama.internal.Wasm3Library;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 
 /**
@@ -30,8 +31,17 @@ public final class PanamaWasmRuntime implements WebAssemblyRuntime {
     @Override
     public WebAssemblyModule compile(final byte[] wasmBytes) {
         ensureOpen();
-        final MemorySegment module = Wasm3Library.parseModule(environment, wasmBytes);
-        return new PanamaWasmModule(environment, module);
+        // The module's wasm bytes must outlive the module; they live in this arena, whose
+        // ownership passes to the module (and then the instance).
+        final Arena moduleArena = Arena.ofShared();
+        try {
+            final MemorySegment module =
+                    Wasm3Library.parseModule(environment, wasmBytes, moduleArena);
+            return new PanamaWasmModule(environment, module, moduleArena);
+        } catch (final RuntimeException e) {
+            moduleArena.close();
+            throw e;
+        }
     }
 
     @Override

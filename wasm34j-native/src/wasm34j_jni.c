@@ -50,19 +50,22 @@ JNIEXPORT void JNI_FN(freeRuntime)(JNIEnv *env, jclass cls, jlong handle) {
     }
 }
 
-JNIEXPORT jlong JNI_FN(parseModule)(JNIEnv *env, jclass cls, jlong envHandle, jbyteArray wasm) {
+/*
+ * Parses a module and returns a two-element array { modulePtr, bufferPtr }.
+ *
+ * wasm3 retains a pointer to the wasm bytes for the lifetime of the module, so the buffer
+ * must outlive the call. Ownership of the buffer is tracked on the Java side and released
+ * via freeBuffer() once the owning module/runtime is freed (see JniWasmModule /
+ * JniWasmInstance). On error a Java exception is thrown and NULL is returned.
+ */
+JNIEXPORT jlongArray JNI_FN(parseModule)(JNIEnv *env, jclass cls, jlong envHandle, jbyteArray wasm) {
     (void) cls;
     jsize length = (*env)->GetArrayLength(env, wasm);
 
-    /*
-     * wasm3 retains a pointer to this buffer for the lifetime of the module, so it
-     * must outlive the call. The buffer is owned by wasm3 once the module loads into
-     * a runtime; it is intentionally not freed here (see JniWasmModule for lifecycle).
-     */
     uint8_t *buffer = (uint8_t *) malloc((size_t) length);
     if (buffer == NULL) {
         throwWasm(env, "out of memory allocating wasm module buffer");
-        return 0;
+        return NULL;
     }
     (*env)->GetByteArrayRegion(env, wasm, 0, length, (jbyte *) buffer);
 
@@ -72,9 +75,35 @@ JNIEXPORT jlong JNI_FN(parseModule)(JNIEnv *env, jclass cls, jlong envHandle, jb
     if (result != m3Err_none) {
         free(buffer);
         throwWasm(env, result);
-        return 0;
+        return NULL;
     }
-    return (jlong) (intptr_t) module;
+
+    jlong handles[2];
+    handles[0] = (jlong) (intptr_t) module;
+    handles[1] = (jlong) (intptr_t) buffer;
+    jlongArray out = (*env)->NewLongArray(env, 2);
+    if (out != NULL) {
+        (*env)->SetLongArrayRegion(env, out, 0, 2, handles);
+    }
+    return out;
+}
+
+/* Frees an unloaded module (one never successfully loaded into a runtime). */
+JNIEXPORT void JNI_FN(freeModule)(JNIEnv *env, jclass cls, jlong module) {
+    (void) env;
+    (void) cls;
+    if (module != 0) {
+        m3_FreeModule((IM3Module) (intptr_t) module);
+    }
+}
+
+/* Frees the malloc'd wasm byte buffer backing a module. */
+JNIEXPORT void JNI_FN(freeBuffer)(JNIEnv *env, jclass cls, jlong buffer) {
+    (void) env;
+    (void) cls;
+    if (buffer != 0) {
+        free((void *) (intptr_t) buffer);
+    }
 }
 
 JNIEXPORT void JNI_FN(loadModule)(JNIEnv *env, jclass cls, jlong runtime, jlong module) {

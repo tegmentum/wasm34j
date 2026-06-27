@@ -36,6 +36,7 @@ public final class Wasm3Library {
     private static final MethodHandle NEW_RUNTIME;
     private static final MethodHandle FREE_RUNTIME;
     private static final MethodHandle PARSE_MODULE;
+    private static final MethodHandle FREE_MODULE;
     private static final MethodHandle LOAD_MODULE;
     private static final MethodHandle FIND_FUNCTION;
     private static final MethodHandle GET_ARG_COUNT;
@@ -57,6 +58,7 @@ public final class Wasm3Library {
         FREE_RUNTIME = downcall("m3_FreeRuntime", FunctionDescriptor.ofVoid(ADDRESS));
         PARSE_MODULE = downcall(
                 "m3_ParseModule", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, JAVA_INT));
+        FREE_MODULE = downcall("m3_FreeModule", FunctionDescriptor.ofVoid(ADDRESS));
         LOAD_MODULE = downcall("m3_LoadModule", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
         FIND_FUNCTION = downcall(
                 "m3_FindFunction", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS));
@@ -115,10 +117,15 @@ public final class Wasm3Library {
         }
     }
 
-    public static MemorySegment parseModule(final MemorySegment environment, final byte[] wasm) {
-        // wasm3 retains a pointer to the module bytes for the module's lifetime, so they are
-        // allocated in the global arena (intentionally retained; matches the JNI backend).
-        final MemorySegment wasmSegment = Arena.global().allocate(wasm.length);
+    /**
+     * Parses a module, allocating its wasm bytes in {@code moduleArena}.
+     *
+     * <p>wasm3 retains a pointer to the bytes for the module's lifetime, so they live in the
+     * caller-supplied arena, which the owning module/instance closes when done.
+     */
+    public static MemorySegment parseModule(
+            final MemorySegment environment, final byte[] wasm, final Arena moduleArena) {
+        final MemorySegment wasmSegment = moduleArena.allocate(wasm.length);
         MemorySegment.copy(wasm, 0, wasmSegment, JAVA_BYTE, 0, wasm.length);
         try (Arena temp = Arena.ofConfined()) {
             final MemorySegment outModule = temp.allocate(ADDRESS);
@@ -130,6 +137,15 @@ public final class Wasm3Library {
             throw e;
         } catch (final Throwable t) {
             throw rethrow("m3_ParseModule", t);
+        }
+    }
+
+    /** Frees an unloaded module (never successfully loaded into a runtime). */
+    public static void freeModule(final MemorySegment module) {
+        try {
+            FREE_MODULE.invokeExact(module);
+        } catch (final Throwable t) {
+            throw rethrow("m3_FreeModule", t);
         }
     }
 

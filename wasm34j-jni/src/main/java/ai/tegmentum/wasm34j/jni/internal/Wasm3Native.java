@@ -29,8 +29,20 @@ public final class Wasm3Native {
 
     public static native void freeRuntime(long runtime);
 
-    /** Parses a module from the given bytes; throws on error. Returns the module handle. */
-    public static native long parseModule(long environment, byte[] wasm);
+    /**
+     * Parses a module from the given bytes; throws on error.
+     *
+     * @return a two-element array {@code {modulePtr, bufferPtr}}; the buffer backs the
+     *     module's wasm bytes and must be released with {@link #freeBuffer(long)} once the
+     *     owning module/runtime is freed
+     */
+    public static native long[] parseModule(long environment, byte[] wasm);
+
+    /** Frees an unloaded module (never successfully loaded into a runtime). */
+    public static native void freeModule(long module);
+
+    /** Frees the native byte buffer backing a module's wasm bytes. */
+    public static native void freeBuffer(long buffer);
 
     /** Loads (instantiates) a parsed module into a runtime; throws on error. */
     public static native void loadModule(long runtime, long module);

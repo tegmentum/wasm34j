@@ -24,8 +24,8 @@ public final class JniWasmRuntime implements WebAssemblyRuntime {
     @Override
     public WebAssemblyModule compile(final byte[] wasmBytes) {
         ensureOpen();
-        final long module = Wasm3Native.parseModule(environment, wasmBytes);
-        return new JniWasmModule(environment, module);
+        final long[] handles = Wasm3Native.parseModule(environment, wasmBytes);
+        return new JniWasmModule(environment, handles[0], handles[1]);
     }
 
     @Override

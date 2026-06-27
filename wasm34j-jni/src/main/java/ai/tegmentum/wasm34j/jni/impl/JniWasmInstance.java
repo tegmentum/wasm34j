@@ -8,15 +8,20 @@ import java.util.Optional;
 
 /**
  * JNI-backed {@link WebAssemblyInstance}, wrapping a wasm3 {@code IM3Runtime} handle into
- * which a module has been loaded. Closing frees the native runtime.
+ * which a module has been loaded, plus the byte buffer backing that module.
+ *
+ * <p>Closing frees the native runtime (which frees the loaded module) and then the byte
+ * buffer, in that order.
  */
 final class JniWasmInstance implements WebAssemblyInstance {
 
     private final long runtime;
+    private final long buffer;
     private boolean closed;
 
-    JniWasmInstance(final long runtime) {
+    JniWasmInstance(final long runtime, final long buffer) {
         this.runtime = runtime;
+        this.buffer = buffer;
     }
 
     @Override
@@ -27,9 +32,11 @@ final class JniWasmInstance implements WebAssemblyInstance {
 
     @Override
     public void close() {
-        if (!closed) {
-            closed = true;
-            Wasm3Native.freeRuntime(runtime);
+        if (closed) {
+            return;
         }
+        closed = true;
+        Wasm3Native.freeRuntime(runtime);
+        Wasm3Native.freeBuffer(buffer);
     }
 }
