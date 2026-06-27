@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.tegmentum.wasm34j</groupId>
+        <artifactId>wasm34j-parent</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>wasm34j-native</artifactId>
+    <packaging>jar</packaging>
+
+    <name>wasm34j Native</name>
+    <description>wasm3 runtime + JNI glue compiled via CMake and bundled per platform</description>
+
+    <properties>
+        <native.build.dir>${project.build.directory}/cmake-build</native.build.dir>
+    </properties>
+
+    <build>
+        <plugins>
+            <!-- Compile the wasm3 + JNI glue shared library with CMake. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>cmake-configure</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${native.compile.skip}</skip>
+                            <executable>cmake</executable>
+                            <arguments>
+                                <argument>-S</argument>
+                                <argument>${project.basedir}</argument>
+                                <argument>-B</argument>
+                                <argument>${native.build.dir}</argument>
+                                <argument>-DCMAKE_BUILD_TYPE=Release</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>cmake-build</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${native.compile.skip}</skip>
+                            <executable>cmake</executable>
+                            <arguments>
+                                <argument>--build</argument>
+                                <argument>${native.build.dir}</argument>
+                                <argument>--config</argument>
+                                <argument>Release</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Bundle the freshly built library at META-INF/native/<platform>/<libfile>. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-native-library</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${native.compile.skip}</skip>
+                            <outputDirectory>${project.build.outputDirectory}/META-INF/native/${native.platform.classifier}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${native.build.dir}</directory>
+                                    <includes>
+                                        <include>${native.library.name}</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

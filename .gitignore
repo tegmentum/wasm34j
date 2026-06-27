@@ -1,0 +1,23 @@
+target/
+*.class
+
+# flatten-maven-plugin output
+.flattened-pom.xml
+
+# Native build artifacts
+build/
+*.o
+*.so
+*.dylib
+*.dll
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
