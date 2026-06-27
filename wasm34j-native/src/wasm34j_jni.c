@@ -8,11 +8,25 @@
 #include <jni.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "wasm3.h"
 
 /* Token-paste helper so the JNIEXPORT names stay readable below. */
 #define JNI_FN(name) JNICALL Java_ai_tegmentum_wasm34j_jni_internal_Wasm3Native_##name
+
+/* Cached at JNI_OnLoad / nativeInitDispatch for host-function callbacks into the JVM. */
+static JavaVM *g_vm = NULL;
+static jclass g_dispatchClass = NULL;
+static jmethodID g_dispatchMethod = NULL;
+
+static const char *const HOST_FUNCTION_ERROR = "host function threw a Java exception";
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+    (void) reserved;
+    g_vm = vm;
+    return JNI_VERSION_1_8;
+}
 
 static void throwWasm(JNIEnv *env, const char *message) {
     jclass cls = (*env)->FindClass(env, "ai/tegmentum/wasm34j/exception/WasmException");
@@ -227,6 +241,240 @@ JNIEXPORT jlongArray JNI_FN(call)(JNIEnv *env, jclass cls, jlong function, jlong
     free(rets);
     free(retptrs);
     return out;
+}
+
+/* ---------------------------------------------------------------------------------------
+ *  Memory access
+ * ------------------------------------------------------------------------------------- */
+
+JNIEXPORT jint JNI_FN(memorySize)(JNIEnv *env, jclass cls, jlong runtime) {
+    (void) env;
+    (void) cls;
+    return (jint) m3_GetMemorySize((IM3Runtime) (intptr_t) runtime);
+}
+
+JNIEXPORT jobject JNI_FN(memoryBuffer)(JNIEnv *env, jclass cls, jlong runtime) {
+    (void) cls;
+    uint32_t size = 0;
+    uint8_t *base = m3_GetMemory((IM3Runtime) (intptr_t) runtime, &size, 0);
+    if (base == NULL) {
+        return NULL;
+    }
+    return (*env)->NewDirectByteBuffer(env, base, (jlong) size);
+}
+
+JNIEXPORT jbyteArray JNI_FN(memoryRead)(
+    JNIEnv *env, jclass cls, jlong runtime, jlong offset, jint length) {
+    (void) cls;
+    uint32_t size = 0;
+    uint8_t *base = m3_GetMemory((IM3Runtime) (intptr_t) runtime, &size, 0);
+    if (base == NULL) {
+        throwWasm(env, "module has no memory");
+        return NULL;
+    }
+    if (offset < 0 || length < 0 || (uint64_t) offset + (uint64_t) length > (uint64_t) size) {
+        throwWasm(env, "memory read out of bounds");
+        return NULL;
+    }
+    jbyteArray out = (*env)->NewByteArray(env, length);
+    if (out != NULL) {
+        (*env)->SetByteArrayRegion(env, out, 0, length, (const jbyte *) (base + offset));
+    }
+    return out;
+}
+
+JNIEXPORT void JNI_FN(memoryWrite)(
+    JNIEnv *env, jclass cls, jlong runtime, jlong offset, jbyteArray data) {
+    (void) cls;
+    jsize length = (*env)->GetArrayLength(env, data);
+    uint32_t size = 0;
+    uint8_t *base = m3_GetMemory((IM3Runtime) (intptr_t) runtime, &size, 0);
+    if (base == NULL) {
+        throwWasm(env, "module has no memory");
+        return;
+    }
+    if (offset < 0 || (uint64_t) offset + (uint64_t) length > (uint64_t) size) {
+        throwWasm(env, "memory write out of bounds");
+        return;
+    }
+    (*env)->GetByteArrayRegion(env, data, 0, length, (jbyte *) (base + offset));
+}
+
+/* ---------------------------------------------------------------------------------------
+ *  Globals
+ * ------------------------------------------------------------------------------------- */
+
+JNIEXPORT jlong JNI_FN(findGlobal)(JNIEnv *env, jclass cls, jlong module, jstring name) {
+    (void) cls;
+    const char *cname = (*env)->GetStringUTFChars(env, name, NULL);
+    IM3Global global = m3_FindGlobal((IM3Module) (intptr_t) module, cname);
+    (*env)->ReleaseStringUTFChars(env, name, cname);
+    return (jlong) (intptr_t) global;
+}
+
+JNIEXPORT jint JNI_FN(globalType)(JNIEnv *env, jclass cls, jlong global) {
+    (void) env;
+    (void) cls;
+    return (jint) m3_GetGlobalType((IM3Global) (intptr_t) global);
+}
+
+JNIEXPORT jlong JNI_FN(globalGet)(JNIEnv *env, jclass cls, jlong global) {
+    (void) cls;
+    M3TaggedValue value;
+    M3Result result = m3_GetGlobal((IM3Global) (intptr_t) global, &value);
+    if (result != m3Err_none) {
+        throwWasm(env, result);
+        return 0;
+    }
+    uint64_t bits = 0;
+    switch (value.type) {
+        case c_m3Type_i32:
+            bits = value.value.i32;
+            break;
+        case c_m3Type_i64:
+            bits = value.value.i64;
+            break;
+        case c_m3Type_f32: {
+            uint32_t tmp;
+            memcpy(&tmp, &value.value.f32, sizeof(tmp));
+            bits = tmp;
+            break;
+        }
+        case c_m3Type_f64:
+            memcpy(&bits, &value.value.f64, sizeof(bits));
+            break;
+        default:
+            bits = 0;
+            break;
+    }
+    return (jlong) bits;
+}
+
+JNIEXPORT void JNI_FN(globalSet)(JNIEnv *env, jclass cls, jlong global, jint type, jlong bits) {
+    (void) cls;
+    M3TaggedValue value;
+    value.type = (M3ValueType) type;
+    uint64_t raw = (uint64_t) bits;
+    switch (type) {
+        case c_m3Type_i32:
+            value.value.i32 = (uint32_t) raw;
+            break;
+        case c_m3Type_i64:
+            value.value.i64 = raw;
+            break;
+        case c_m3Type_f32: {
+            uint32_t tmp = (uint32_t) raw;
+            memcpy(&value.value.f32, &tmp, sizeof(tmp));
+            break;
+        }
+        case c_m3Type_f64:
+            memcpy(&value.value.f64, &raw, sizeof(raw));
+            break;
+        default:
+            break;
+    }
+    M3Result result = m3_SetGlobal((IM3Global) (intptr_t) global, &value);
+    if (result != m3Err_none) {
+        throwWasm(env, result);
+    }
+}
+
+/* ---------------------------------------------------------------------------------------
+ *  Host functions
+ * ------------------------------------------------------------------------------------- */
+
+/* Caches the Java dispatch entry point used by the host-function trampoline. */
+JNIEXPORT void JNI_FN(nativeInitDispatch)(JNIEnv *env, jclass cls, jclass dispatchClass) {
+    (void) cls;
+    g_dispatchClass = (jclass) (*env)->NewGlobalRef(env, dispatchClass);
+    g_dispatchMethod = (*env)->GetStaticMethodID(env, dispatchClass, "dispatch", "(I[J)[J");
+}
+
+/*
+ * Single M3RawCall trampoline shared by all linked host functions. The import's userdata
+ * carries the registry id; arguments live at _sp[retc + i] and results are written to
+ * _sp[0 .. retc-1].
+ */
+static const void *hostTrampoline(
+    IM3Runtime runtime, IM3ImportContext ctx, uint64_t *sp, void *mem) {
+    (void) runtime;
+    (void) mem;
+    const int id = (int) (intptr_t) ctx->userdata;
+    IM3Function function = ctx->function;
+    const uint32_t argc = m3_GetArgCount(function);
+    const uint32_t retc = m3_GetRetCount(function);
+
+    JNIEnv *env = NULL;
+    int attached = 0;
+    jint status = (*g_vm)->GetEnv(g_vm, (void **) &env, JNI_VERSION_1_8);
+    if (status == JNI_EDETACHED) {
+        if ((*g_vm)->AttachCurrentThread(g_vm, (void **) &env, NULL) != JNI_OK) {
+            return HOST_FUNCTION_ERROR;
+        }
+        attached = 1;
+    }
+
+    jlongArray jargs = (*env)->NewLongArray(env, (jsize) argc);
+    if (argc > 0) {
+        jlong stackbuf[16];
+        jlong *tmp = (argc <= 16) ? stackbuf : (jlong *) malloc(sizeof(jlong) * argc);
+        for (uint32_t i = 0; i < argc; i++) {
+            tmp[i] = (jlong) sp[retc + i];
+        }
+        (*env)->SetLongArrayRegion(env, jargs, 0, (jsize) argc, tmp);
+        if (tmp != stackbuf) {
+            free(tmp);
+        }
+    }
+
+    jlongArray jresults = (jlongArray) (*env)->CallStaticObjectMethod(
+        env, g_dispatchClass, g_dispatchMethod, (jint) id, jargs);
+
+    const void *outcome = m3Err_none;
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        outcome = HOST_FUNCTION_ERROR;
+    } else if (retc > 0 && jresults != NULL) {
+        jlong *r = (*env)->GetLongArrayElements(env, jresults, NULL);
+        for (uint32_t i = 0; i < retc; i++) {
+            sp[i] = (uint64_t) r[i];
+        }
+        (*env)->ReleaseLongArrayElements(env, jresults, r, JNI_ABORT);
+    }
+
+    if (jargs != NULL) {
+        (*env)->DeleteLocalRef(env, jargs);
+    }
+    if (jresults != NULL) {
+        (*env)->DeleteLocalRef(env, jresults);
+    }
+    if (attached) {
+        (*g_vm)->DetachCurrentThread(g_vm);
+    }
+    return outcome;
+}
+
+/* Links a host function (by registry id) into a module's import slot before it is loaded. */
+JNIEXPORT void JNI_FN(linkRawFunction)(
+    JNIEnv *env, jclass cls, jlong module, jstring moduleName, jstring functionName,
+    jstring signature, jint id) {
+    (void) cls;
+    const char *cmod = (*env)->GetStringUTFChars(env, moduleName, NULL);
+    const char *cname = (*env)->GetStringUTFChars(env, functionName, NULL);
+    const char *csig = (*env)->GetStringUTFChars(env, signature, NULL);
+
+    M3Result result = m3_LinkRawFunctionEx(
+        (IM3Module) (intptr_t) module, cmod, cname, csig, &hostTrampoline,
+        (const void *) (intptr_t) id);
+
+    (*env)->ReleaseStringUTFChars(env, moduleName, cmod);
+    (*env)->ReleaseStringUTFChars(env, functionName, cname);
+    (*env)->ReleaseStringUTFChars(env, signature, csig);
+
+    /* A module that does not import this function is not an error; other failures are. */
+    if (result != m3Err_none && result != m3Err_functionLookupFailed) {
+        throwWasm(env, result);
+    }
 }
 
 JNIEXPORT jstring JNI_FN(version)(JNIEnv *env, jclass cls) {

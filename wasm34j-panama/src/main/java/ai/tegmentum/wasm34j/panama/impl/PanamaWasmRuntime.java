@@ -3,6 +3,7 @@ package ai.tegmentum.wasm34j.panama.impl;
 import ai.tegmentum.wasm34j.WebAssemblyModule;
 import ai.tegmentum.wasm34j.WebAssemblyRuntime;
 import ai.tegmentum.wasm34j.exception.WasmException;
+import ai.tegmentum.wasm34j.internal.BuildInfo;
 import ai.tegmentum.wasm34j.panama.internal.Wasm3Library;
 
 import java.lang.foreign.Arena;
@@ -14,9 +15,9 @@ import java.lang.foreign.MemorySegment;
  */
 public final class PanamaWasmRuntime implements WebAssemblyRuntime {
 
-    // wasm3 exposes its version only as a compile-time macro, so it is pinned to the
-    // vendored submodule tag here rather than read from the library.
-    private static final String ENGINE_VERSION = "0.5.0";
+    // wasm3 exposes its version only as a compile-time macro, so it is read from the
+    // Maven-filtered build resource (shared with the JNI backend) rather than hardcoded.
+    private static final String ENGINE_VERSION = BuildInfo.wasm3Version();
 
     private final MemorySegment environment;
     private boolean closed;

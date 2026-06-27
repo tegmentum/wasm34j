@@ -5,15 +5,20 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
+import ai.tegmentum.wasm34j.FunctionType;
+import ai.tegmentum.wasm34j.HostFunction;
 import ai.tegmentum.wasm34j.exception.WasmException;
 import ai.tegmentum.wasm34j.internal.NativeLibrary;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.nio.file.Path;
 
 /**
@@ -45,6 +50,29 @@ public final class Wasm3Library {
     private static final MethodHandle GET_RET_TYPE;
     private static final MethodHandle CALL;
     private static final MethodHandle GET_RESULTS;
+    private static final MethodHandle GET_MEMORY;
+    private static final MethodHandle GET_MEMORY_SIZE;
+    private static final MethodHandle FIND_GLOBAL;
+    private static final MethodHandle GET_GLOBAL;
+    private static final MethodHandle SET_GLOBAL;
+    private static final MethodHandle GET_GLOBAL_TYPE;
+    private static final MethodHandle LINK_RAW_FUNCTION;
+
+    /** Layout of {@code M3TaggedValue { int type; union{...} value; }} (4 + 4 pad + 8). */
+    private static final MemoryLayout TAGGED_VALUE = MemoryLayout.structLayout(
+            JAVA_INT.withName("type"),
+            MemoryLayout.paddingLayout(4),
+            JAVA_LONG.withName("value"));
+    private static final long TAGGED_VALUE_OFFSET = 8L;
+
+    /** M3RawCall: (IM3Runtime, IM3ImportContext, uint64_t* sp, void* mem) -> M3Result. */
+    private static final FunctionDescriptor M3_RAW_CALL =
+            FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS);
+    private static final MethodHandle HOST_INVOKE;
+
+    /** Returned (as a non-null M3Result) when a host function throws. */
+    private static final MemorySegment HOST_ERROR =
+            Arena.global().allocateFrom("host function threw a Java exception");
 
     static {
         // The library lives for the lifetime of the JVM, so it is looked up in the global arena.
@@ -69,6 +97,27 @@ public final class Wasm3Library {
         CALL = downcall("m3_Call", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
         GET_RESULTS = downcall(
                 "m3_GetResults", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
+        GET_MEMORY = downcall(
+                "m3_GetMemory", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_INT));
+        GET_MEMORY_SIZE = downcall("m3_GetMemorySize", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        FIND_GLOBAL = downcall("m3_FindGlobal", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+        GET_GLOBAL = downcall("m3_GetGlobal", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+        SET_GLOBAL = downcall("m3_SetGlobal", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+        GET_GLOBAL_TYPE = downcall("m3_GetGlobalType", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        LINK_RAW_FUNCTION = downcall(
+                "m3_LinkRawFunction",
+                FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+
+        try {
+            HOST_INVOKE = MethodHandles.lookup().findVirtual(
+                    HostFunctionBridge.class,
+                    "invoke",
+                    MethodType.methodType(
+                            MemorySegment.class, MemorySegment.class, MemorySegment.class,
+                            MemorySegment.class, MemorySegment.class));
+        } catch (final ReflectiveOperationException e) {
+            throw new WasmException("Failed to bind host-function upcall handle", e);
+        }
     }
 
     private Wasm3Library() {
@@ -254,6 +303,159 @@ public final class Wasm3Library {
             throw e;
         } catch (final Throwable t) {
             throw rethrow("m3_Call", t);
+        }
+    }
+
+    // --- Memory ---
+
+    /** @return the live linear-memory segment (reinterpreted to its size), or NULL if none. */
+    public static MemorySegment memorySegment(final MemorySegment runtime) {
+        try (Arena temp = Arena.ofConfined()) {
+            final MemorySegment sizeOut = temp.allocate(JAVA_INT);
+            final MemorySegment base = (MemorySegment) GET_MEMORY.invokeExact(runtime, sizeOut, 0);
+            if (base.address() == 0) {
+                return MemorySegment.NULL;
+            }
+            final int size = sizeOut.get(JAVA_INT, 0);
+            return base.reinterpret(Integer.toUnsignedLong(size));
+        } catch (final Throwable t) {
+            throw rethrow("m3_GetMemory", t);
+        }
+    }
+
+    public static int memorySize(final MemorySegment runtime) {
+        try {
+            return (int) GET_MEMORY_SIZE.invokeExact(runtime);
+        } catch (final Throwable t) {
+            throw rethrow("m3_GetMemorySize", t);
+        }
+    }
+
+    // --- Globals ---
+
+    /** @return the global pointer, or {@link MemorySegment#NULL} if absent. */
+    public static MemorySegment findGlobal(final MemorySegment module, final String name) {
+        try (Arena temp = Arena.ofConfined()) {
+            final MemorySegment cName = temp.allocateFrom(name);
+            return (MemorySegment) FIND_GLOBAL.invokeExact(module, cName);
+        } catch (final Throwable t) {
+            throw rethrow("m3_FindGlobal", t);
+        }
+    }
+
+    public static int globalType(final MemorySegment global) {
+        try {
+            return (int) GET_GLOBAL_TYPE.invokeExact(global);
+        } catch (final Throwable t) {
+            throw rethrow("m3_GetGlobalType", t);
+        }
+    }
+
+    /** @return the global's value as raw 64-bit bits (i32/f32 in the low 32 bits). */
+    public static long globalGet(final MemorySegment global) {
+        try (Arena temp = Arena.ofConfined()) {
+            final MemorySegment tagged = temp.allocate(TAGGED_VALUE);
+            final MemorySegment result = (MemorySegment) GET_GLOBAL.invokeExact(global, tagged);
+            checkError(result, "m3_GetGlobal");
+            return tagged.get(JAVA_LONG, TAGGED_VALUE_OFFSET);
+        } catch (final WasmException e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw rethrow("m3_GetGlobal", t);
+        }
+    }
+
+    public static void globalSet(final MemorySegment global, final int type, final long bits) {
+        try (Arena temp = Arena.ofConfined()) {
+            final MemorySegment tagged = temp.allocate(TAGGED_VALUE);
+            tagged.set(JAVA_INT, 0, type);
+            tagged.set(JAVA_LONG, TAGGED_VALUE_OFFSET, bits);
+            final MemorySegment result = (MemorySegment) SET_GLOBAL.invokeExact(global, tagged);
+            checkError(result, "m3_SetGlobal");
+        } catch (final WasmException e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw rethrow("m3_SetGlobal", t);
+        }
+    }
+
+    // --- Host functions ---
+
+    /**
+     * Creates a native {@code M3RawCall} stub (in {@code arena}) that invokes the given host
+     * function.
+     */
+    public static MemorySegment createHostUpcall(
+            final HostFunction function, final FunctionType type, final Arena arena) {
+        final HostFunctionBridge bridge = new HostFunctionBridge(function, type);
+        final MethodHandle bound = HOST_INVOKE.bindTo(bridge);
+        return LINKER.upcallStub(bound, M3_RAW_CALL, arena);
+    }
+
+    /** Links a host {@code M3RawCall} stub into a module import before it is loaded. */
+    public static void linkRawFunction(
+            final MemorySegment module,
+            final String moduleName,
+            final String functionName,
+            final String signature,
+            final MemorySegment rawCall) {
+        try (Arena temp = Arena.ofConfined()) {
+            final MemorySegment m = temp.allocateFrom(moduleName);
+            final MemorySegment n = temp.allocateFrom(functionName);
+            final MemorySegment s = temp.allocateFrom(signature);
+            final MemorySegment result =
+                    (MemorySegment) LINK_RAW_FUNCTION.invokeExact(module, m, n, s, rawCall);
+            if (result.address() != 0) {
+                final String message = result.reinterpret(Long.MAX_VALUE).getString(0);
+                // A module that does not import this function is not an error.
+                if (!message.contains("lookup failed")) {
+                    throw new WasmException("m3_LinkRawFunction failed: " + message);
+                }
+            }
+        } catch (final WasmException e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw rethrow("m3_LinkRawFunction", t);
+        }
+    }
+
+    /** Adapts a {@link HostFunction} to the wasm3 {@code M3RawCall} calling convention. */
+    private static final class HostFunctionBridge {
+
+        private final HostFunction function;
+        private final FunctionType type;
+
+        HostFunctionBridge(final HostFunction function, final FunctionType type) {
+            this.function = function;
+            this.type = type;
+        }
+
+        @SuppressWarnings("unused") // invoked via upcall MethodHandle
+        MemorySegment invoke(
+                final MemorySegment runtime,
+                final MemorySegment ctx,
+                final MemorySegment sp,
+                final MemorySegment mem) {
+            try {
+                final int retc = type.resultCount();
+                final int argc = type.parameterCount();
+                final var paramTypes = type.parameterTypes();
+                final MemorySegment stack =
+                        sp.reinterpret((long) (retc + argc) * JAVA_LONG.byteSize());
+                final ai.tegmentum.wasm34j.WasmValue[] args =
+                        new ai.tegmentum.wasm34j.WasmValue[argc];
+                for (int i = 0; i < argc; i++) {
+                    args[i] = ai.tegmentum.wasm34j.WasmValue.ofRaw(
+                            paramTypes[i], stack.getAtIndex(JAVA_LONG, retc + i));
+                }
+                final ai.tegmentum.wasm34j.WasmValue[] results = function.call(args);
+                for (int i = 0; i < retc; i++) {
+                    stack.setAtIndex(JAVA_LONG, i, results[i].rawBits());
+                }
+                return MemorySegment.NULL;
+            } catch (final Throwable t) {
+                return HOST_ERROR;
+            }
         }
     }
 

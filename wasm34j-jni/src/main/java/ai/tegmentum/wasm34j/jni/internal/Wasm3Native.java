@@ -64,6 +64,37 @@ public final class Wasm3Native {
      */
     public static native long[] call(long function, long[] rawArgs);
 
+    // --- Memory ---
+
+    public static native int memorySize(long runtime);
+
+    /** @return a direct {@link java.nio.ByteBuffer} over the runtime memory, or null if none. */
+    public static native java.nio.ByteBuffer memoryBuffer(long runtime);
+
+    public static native byte[] memoryRead(long runtime, long offset, int length);
+
+    public static native void memoryWrite(long runtime, long offset, byte[] data);
+
+    // --- Globals ---
+
+    /** @return the global handle, or 0 if no such export exists. */
+    public static native long findGlobal(long module, String name);
+
+    public static native int globalType(long global);
+
+    public static native long globalGet(long global);
+
+    public static native void globalSet(long global, int type, long bits);
+
+    // --- Host functions ---
+
+    /** Caches the Java dispatch entry point for host-function callbacks. */
+    public static native void nativeInitDispatch(Class<?> dispatchClass);
+
+    /** Links a host function (by registry id) into a module import before it is loaded. */
+    public static native void linkRawFunction(
+            long module, String moduleName, String functionName, String signature, int id);
+
     /** @return the wasm3 engine version string. */
     public static native String version();
 }
