@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.tegmentum.wasm34j</groupId>
+        <artifactId>wasm34j-parent</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>wasm34j-panama</artifactId>
+    <packaging>jar</packaging>
+
+    <name>wasm34j Panama</name>
+    <description>Panama (java.lang.foreign / FFM) wasm3 runtime implementation (Java 22+)</description>
+
+    <properties>
+        <!-- The Foreign Function and Memory API is finalized in Java 22. -->
+        <maven.compiler.release>22</maven.compiler.release>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>ai.tegmentum.wasm34j</groupId>
+            <artifactId>wasm34j</artifactId>
+        </dependency>
+
+        <!-- Brings the bundled native library (META-INF/native/<platform>/...) onto the classpath. -->
+        <dependency>
+            <groupId>ai.tegmentum.wasm34j</groupId>
+            <artifactId>wasm34j-native</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>--enable-native-access=ALL-UNNAMED</argLine>
+                    <systemPropertyVariables>
+                        <wasm34j.runtime>panama</wasm34j.runtime>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

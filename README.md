@@ -9,13 +9,19 @@ and `wasmtime4j`) and is designed to be integrated as another backend runtime in
 It exposes a small, runtime-agnostic API and pluggable backends:
 
 - **JNI** backend — thin C glue over the wasm3 C API, Java 8+. *(implemented)*
-- **Panama** backend — `java.lang.foreign` (FFM) downcalls straight into wasm3, Java 22+. *(planned)*
+- **Panama** backend — `java.lang.foreign` (FFM) downcalls straight into wasm3, Java 22+. *(implemented)*
+
+Both backends load the same bundled native library: the Panama backend links the raw
+`m3_*` symbols exported by it and downcalls them directly, so no JNI glue is involved on
+that path.
 
 ## Status
 
-A working vertical slice: a `.wasm` module can be parsed, instantiated, and have an
-exported function called through the JNI backend. See
-`wasm34j-tests/src/test/java/.../AddIntegrationTest.java`.
+A working vertical slice on both backends: a `.wasm` module can be parsed, instantiated,
+and have an exported function called. The highest-priority available backend is selected
+automatically (Panama outranks JNI on Java 22+). See
+`wasm34j-tests/.../AddIntegrationTest.java` (JNI) and
+`wasm34j-panama/.../PanamaAddTest.java` (Panama).
 
 ## Modules
 
@@ -23,7 +29,8 @@ exported function called through the JNI backend. See
 |------------------|-------------------------------------------------------------------------|
 | `wasm34j`        | Public, runtime-agnostic API (`WebAssemblyRuntime`, `RuntimeFactory`, SPI) |
 | `wasm34j-native` | wasm3 (git submodule) + JNI glue, compiled via CMake and bundled per platform |
-| `wasm34j-jni`    | JNI-backed implementation of the API                                    |
+| `wasm34j-jni`    | JNI-backed implementation of the API (Java 8+)                          |
+| `wasm34j-panama` | Panama (FFM) implementation of the API (Java 22+)                       |
 | `wasm34j-tests`  | End-to-end integration tests                                            |
 
 ## Requirements

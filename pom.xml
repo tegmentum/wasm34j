@@ -30,6 +30,7 @@
         <module>wasm34j</module>
         <module>wasm34j-native</module>
         <module>wasm34j-jni</module>
+        <module>wasm34j-panama</module>
         <module>wasm34j-tests</module>
     </modules>
 
@@ -92,6 +93,11 @@
             <dependency>
                 <groupId>ai.tegmentum.wasm34j</groupId>
                 <artifactId>wasm34j-jni</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.tegmentum.wasm34j</groupId>
+                <artifactId>wasm34j-panama</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

@@ -1,4 +1,4 @@
-package ai.tegmentum.wasm34j.jni.internal;
+package ai.tegmentum.wasm34j.internal;
 
 import java.util.Locale;
 
@@ -6,6 +6,8 @@ import java.util.Locale;
  * Normalizes the host OS/architecture into the platform identifiers used to name the
  * bundled native library and its classpath resource. These identifiers must match the
  * {@code native.platform.classifier} values produced by the Maven build.
+ *
+ * <p>Shared by all backends (JNI, Panama).
  */
 public final class NativePlatform {
 
