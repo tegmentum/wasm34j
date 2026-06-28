@@ -25,7 +25,7 @@ static const char *const HOST_FUNCTION_ERROR = "host function threw a Java excep
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     (void) reserved;
     g_vm = vm;
-    return JNI_VERSION_1_8;
+    return JNI_VERSION_1_6;
 }
 
 static void throwWasm(JNIEnv *env, const char *message) {
@@ -406,7 +406,7 @@ static const void *hostTrampoline(
 
     JNIEnv *env = NULL;
     int attached = 0;
-    jint status = (*g_vm)->GetEnv(g_vm, (void **) &env, JNI_VERSION_1_8);
+    jint status = (*g_vm)->GetEnv(g_vm, (void **) &env, JNI_VERSION_1_6);
     if (status == JNI_EDETACHED) {
         if ((*g_vm)->AttachCurrentThread(g_vm, (void **) &env, NULL) != JNI_OK) {
             return HOST_FUNCTION_ERROR;
