@@ -72,6 +72,30 @@ The native library is built per-platform on each OS's own runner in CI (see
 release workflow downloads every platform's library and bundles them all into a single set
 of jars (under `META-INF/native/<platform>/`), so one published artifact works everywhere.
 
+### Publishing to Maven Central
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds all native libraries,
+then signs and deploys `wasm34j`, `wasm34j-native`, `wasm34j-jni`, and `wasm34j-panama` to
+Maven Central via the `release` profile (GPG signing + the `central-publishing-maven-plugin`,
+with `flattenMode=ossrh` so each POM is self-contained), and attaches the jars + checksums
+to the GitHub release.
+
+Required repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Purpose |
+|--------|---------|
+| `MAVEN_CENTRAL_USERNAME` | Central Portal user token name |
+| `MAVEN_CENTRAL_PASSWORD` | Central Portal user token password |
+| `GPG_PRIVATE_KEY` | ASCII-armored GPG private key used to sign artifacts |
+| `GPG_PASSPHRASE` | passphrase for that key |
+
+To cut a release: ensure the secrets are set, then push a tag (the version is taken from the
+tag, e.g. `v0.5.0-1.0.0` → `0.5.0-1.0.0`):
+
+```bash
+git tag -a v0.5.0-1.0.0 -m "wasm34j 0.5.0-1.0.0" && git push origin v0.5.0-1.0.0
+```
+
 ## Android
 
 Android's ART runtime has no `java.lang.foreign`, so only the **JNI** backend is used there.

@@ -39,23 +39,58 @@ jobs:
           path: staging/${{ matrix.lib }}
           if-no-files-found: error
 
-  # Assemble all platforms into a single set of jars and publish.
+  # Assemble all platforms into one set of jars and publish to Maven Central + GitHub.
+  # Requires repo secrets: MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD,
+  # GPG_PRIVATE_KEY (ASCII-armored), GPG_PASSPHRASE.
   publish:
+    name: Publish
     needs: build-native
     runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           java-version: '25'
           distribution: 'temurin'
+          server-id: central
+          server-username: MAVEN_CENTRAL_USERNAME
+          server-password: MAVEN_CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+
+      - name: Verify required secrets are configured
+        run: |
+          missing=0
+          for s in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD GPG_PRIVATE_KEY GPG_PASSPHRASE; do
+            case "$s" in
+              MAVEN_CENTRAL_USERNAME) v="${{ secrets.MAVEN_CENTRAL_USERNAME }}" ;;
+              MAVEN_CENTRAL_PASSWORD) v="${{ secrets.MAVEN_CENTRAL_PASSWORD }}" ;;
+              GPG_PRIVATE_KEY) v="${{ secrets.GPG_PRIVATE_KEY }}" ;;
+              GPG_PASSPHRASE) v="${{ secrets.GPG_PASSPHRASE }}" ;;
+            esac
+            if [ -z "$v" ]; then echo "::error::secret $s is not set"; missing=$((missing+1)); fi
+          done
+          [ "$missing" -eq 0 ] || { echo "::error::$missing required secret(s) missing"; exit 1; }
+
+      - name: Cache Maven
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-publish-${{ hashFiles('**/pom.xml') }}
+          restore-keys: m2-publish-
+
       - name: Download all native libraries
         uses: actions/download-artifact@v4
         with:
           pattern: native-*
           path: natives
+
       - name: Stage natives into resource trees (all platforms in one jar)
-        shell: bash
         run: |
           for dir in natives/native-*; do
             platform="${dir#natives/native-}"
@@ -65,16 +100,40 @@ jobs:
             done
           done
           find . -path '*/META-INF/native/*' -type f
-      - name: Package (native build skipped; pre-built libs bundled)
-        run: ./mvnw -B -ntp -Pskip-native -DskipTests package
-      - name: Upload jars to the GitHub release
+
+      - name: Resolve release version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Maven Central
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          ./mvnw -B -ntp deploy -P release -Pskip-native -DskipTests \
+            -Drevision=${{ steps.version.outputs.version }} \
+            -pl wasm34j,wasm34j-native,wasm34j-jni,wasm34j-panama
+
+      - name: Create checksums
+        run: |
+          for dir in wasm34j wasm34j-native wasm34j-jni wasm34j-panama; do
+            for jar in "$dir"/target/*.jar; do
+              [ -f "$jar" ] && sha256sum "$jar" > "$jar.sha256"
+            done
+          done
+
+      - name: Attach jars to the GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          generate_release_notes: true
           files: |
             wasm34j/target/*.jar
+            wasm34j/target/*.jar.sha256
             wasm34j-native/target/*.jar
+            wasm34j-native/target/*.jar.sha256
             wasm34j-jni/target/*.jar
+            wasm34j-jni/target/*.jar.sha256
             wasm34j-panama/target/*.jar
-      # To publish to Maven Central instead, configure the central-publishing plugin and
-      # run `./mvnw -Pskip-native -DskipTests deploy` here with the appropriate secrets.
+            wasm34j-panama/target/*.jar.sha256
