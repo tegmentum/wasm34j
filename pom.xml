@@ -78,7 +78,7 @@
         <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
         <maven-javadoc-plugin.version>3.6.3</maven-javadoc-plugin.version>
         <maven-gpg-plugin.version>3.2.4</maven-gpg-plugin.version>
-        <central-publishing-plugin.version>0.7.0</central-publishing-plugin.version>
+        <central-publishing-plugin.version>0.8.0</central-publishing-plugin.version>
 
         <!-- Quality plugin versions -->
         <spotless-plugin.version>2.43.0</spotless-plugin.version>
