@@ -5,7 +5,9 @@ import ai.tegmentum.wasm34j.spi.RuntimeProvider;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
 /**
@@ -65,9 +67,27 @@ public final class RuntimeFactory {
      */
     public static List<RuntimeProvider> availableProviders() {
         final List<RuntimeProvider> providers = new ArrayList<>();
-        for (final RuntimeProvider provider : ServiceLoader.load(RuntimeProvider.class)) {
-            if (provider.isAvailable()) {
-                providers.add(provider);
+        // Iterate defensively: a backend compiled for a newer Java release (e.g. the Panama
+        // provider on a Java 17-21 JVM) cannot be loaded and surfaces as a
+        // ServiceConfigurationError. Skip such providers rather than letting one broken entry
+        // hide all the others (the ServiceLoader iterator advances past the failed element).
+        final Iterator<RuntimeProvider> iterator = ServiceLoader.load(RuntimeProvider.class).iterator();
+        while (true) {
+            final RuntimeProvider provider;
+            try {
+                if (!iterator.hasNext()) {
+                    break;
+                }
+                provider = iterator.next();
+            } catch (final ServiceConfigurationError e) {
+                continue;
+            }
+            try {
+                if (provider.isAvailable()) {
+                    providers.add(provider);
+                }
+            } catch (final Throwable t) {
+                // A provider that reports availability badly should not break discovery.
             }
         }
         providers.sort(Comparator.comparingInt(RuntimeProvider::priority).reversed());
