@@ -41,7 +41,18 @@ public final class JniRuntimeProvider implements RuntimeProvider {
 
     @Override
     public boolean isAvailable() {
-        return NativeLibraryLoader.isResourceAvailable();
+        // Available if the native library can actually be loaded — either from the bundled
+        // classpath resource (desktop/server) or via System.loadLibrary from the APK's
+        // lib/<abi>/ (Android), where it is not a classpath resource.
+        if (NativeLibraryLoader.isResourceAvailable()) {
+            return true;
+        }
+        try {
+            NativeLibraryLoader.ensureLoaded();
+            return true;
+        } catch (final Throwable t) {
+            return false;
+        }
     }
 
     @Override
