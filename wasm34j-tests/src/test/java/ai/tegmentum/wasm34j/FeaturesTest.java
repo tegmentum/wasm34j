@@ -1,9 +1,22 @@
+/*
+ * Copyright (c) 2026 Tegmentum AI, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package ai.tegmentum.wasm34j;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import ai.tegmentum.wasm34j.exception.WasmException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -11,9 +24,9 @@ import java.io.InputStream;
 
 import org.junit.jupiter.api.Test;
 
-/**
- * Exercises the broader API (memory, globals, host functions) on the JNI backend.
- */
+import ai.tegmentum.wasm34j.exception.WasmException;
+
+/** Exercises the broader API (memory, globals, host functions) on the JNI backend. */
 class FeaturesTest {
 
     private static byte[] load(final String resource) throws IOException {
@@ -44,8 +57,9 @@ class FeaturesTest {
                 WebAssemblyModule module = runtime.compile(wasm);
                 WebAssemblyInstance instance = module.instantiate()) {
 
-            final WebAssemblyMemory memory = instance.findMemory("memory").orElseThrow(
-                    () -> new AssertionError("no memory"));
+            final WebAssemblyMemory memory =
+                    instance.findMemory("memory")
+                            .orElseThrow(() -> new AssertionError("no memory"));
             assertThat(memory.byteSize()).isEqualTo(65536);
 
             // Java writes to memory; wasm reads it back via load(offset).
@@ -65,8 +79,9 @@ class FeaturesTest {
                 WebAssemblyModule module = runtime.compile(wasm);
                 WebAssemblyInstance instance = module.instantiate()) {
 
-            final WasmGlobal counter = instance.findGlobal("counter").orElseThrow(
-                    () -> new AssertionError("no counter global"));
+            final WasmGlobal counter =
+                    instance.findGlobal("counter")
+                            .orElseThrow(() -> new AssertionError("no counter global"));
             assertThat(counter.type()).isEqualTo(ValueType.I32);
             assertThat(counter.get().asInt()).isEqualTo(7);
 
@@ -74,8 +89,9 @@ class FeaturesTest {
             assertThat(counter.get().asInt()).isEqualTo(42);
             assertThat(instance.getFunction("getCounter").invoke()).isEqualTo(42);
 
-            final WasmGlobal constant = instance.findGlobal("constant").orElseThrow(
-                    () -> new AssertionError("no constant global"));
+            final WasmGlobal constant =
+                    instance.findGlobal("constant")
+                            .orElseThrow(() -> new AssertionError("no constant global"));
             assertThat(constant.get().asInt()).isEqualTo(99);
 
             // wasm3 does not currently enforce global immutability (the check is a TODO
@@ -90,23 +106,27 @@ class FeaturesTest {
         final byte[] wasm = load("/host.wasm");
         final int[] logged = new int[] {-1};
 
-        final WasmImports imports = WasmImports.builder()
-                .function(
-                        "env",
-                        "add",
-                        FunctionType.of(
-                                new ValueType[] {ValueType.I32, ValueType.I32},
-                                new ValueType[] {ValueType.I32}),
-                        args -> new WasmValue[] {WasmValue.i32(args[0].asInt() + args[1].asInt())})
-                .function(
-                        "env",
-                        "log",
-                        FunctionType.of(new ValueType[] {ValueType.I32}, new ValueType[0]),
-                        args -> {
-                            logged[0] = args[0].asInt();
-                            return new WasmValue[0];
-                        })
-                .build();
+        final WasmImports imports =
+                WasmImports.builder()
+                        .function(
+                                "env",
+                                "add",
+                                FunctionType.of(
+                                        new ValueType[] {ValueType.I32, ValueType.I32},
+                                        new ValueType[] {ValueType.I32}),
+                                args ->
+                                        new WasmValue[] {
+                                            WasmValue.i32(args[0].asInt() + args[1].asInt())
+                                        })
+                        .function(
+                                "env",
+                                "log",
+                                FunctionType.of(new ValueType[] {ValueType.I32}, new ValueType[0]),
+                                args -> {
+                                    logged[0] = args[0].asInt();
+                                    return new WasmValue[0];
+                                })
+                        .build();
 
         try (WebAssemblyRuntime runtime = RuntimeFactory.create();
                 WebAssemblyModule module = runtime.compile(wasm);

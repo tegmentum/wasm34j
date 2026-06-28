@@ -1,4 +1,22 @@
+/*
+ * Copyright (c) 2026 Tegmentum AI, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package ai.tegmentum.wasm34j.jni.internal;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import ai.tegmentum.wasm34j.FunctionType;
 import ai.tegmentum.wasm34j.HostFunction;
@@ -6,16 +24,13 @@ import ai.tegmentum.wasm34j.ValueType;
 import ai.tegmentum.wasm34j.WasmValue;
 import ai.tegmentum.wasm34j.exception.WasmException;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  * Process-wide registry of host functions linked through the JNI backend.
  *
- * <p>Each registered host function gets an integer id, which is passed to wasm3 as the
- * import {@code userdata}. The native trampoline calls {@link #dispatch(int, long[])} with
- * that id and the raw argument bits; this class reconstructs typed values, invokes the
- * {@link HostFunction}, and returns the raw result bits.
+ * <p>Each registered host function gets an integer id, which is passed to wasm3 as the import
+ * {@code userdata}. The native trampoline calls {@link #dispatch(int, long[])} with that id and the
+ * raw argument bits; this class reconstructs typed values, invokes the {@link HostFunction}, and
+ * returns the raw result bits.
  */
 public final class HostFunctionRegistry {
 
@@ -28,8 +43,7 @@ public final class HostFunctionRegistry {
         Wasm3Native.nativeInitDispatch(HostFunctionRegistry.class);
     }
 
-    private HostFunctionRegistry() {
-    }
+    private HostFunctionRegistry() {}
 
     /** Forces class initialization (native dispatch wiring). */
     public static void ensureInitialized() {
@@ -56,7 +70,14 @@ public final class HostFunctionRegistry {
         return ai.tegmentum.wasm34j.internal.Signatures.wasm3(type);
     }
 
-    /** Invoked from native code. Reconstructs args, calls the host function, returns raw results. */
+    /**
+     * Invoked from native code. Reconstructs args, calls the host function, returns raw results.
+     *
+     * @param id the registry id passed to wasm3 as the import userdata
+     * @param rawArgs the raw 64-bit argument bits
+     * @return the raw 64-bit result bits
+     * @throws WasmException if no host function is registered for {@code id}
+     */
     public static long[] dispatch(final int id, final long[] rawArgs) {
         final Entry entry = REGISTRY.get(id);
         if (entry == null) {

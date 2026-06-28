@@ -1,11 +1,26 @@
+/*
+ * Copyright (c) 2026 Tegmentum AI, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package ai.tegmentum.wasm34j.jni.internal;
 
 /**
- * Thin static binding to the wasm3 C API via JNI. Native handles (environment, runtime,
- * module, and function pointers) are represented as {@code long} values.
+ * Thin static binding to the wasm3 C API via JNI. Native handles (environment, runtime, module, and
+ * function pointers) are represented as {@code long} values.
  *
- * <p>The native library is loaded when this class is initialized. All methods are
- * implemented in {@code wasm34j_native} (see {@code wasm34j-native/src/wasm34j_jni.c}).
+ * <p>The native library is loaded when this class is initialized. All methods are implemented in
+ * {@code wasm34j_native} (see {@code wasm34j-native/src/wasm34j_jni.c}).
  */
 public final class Wasm3Native {
 
@@ -13,8 +28,7 @@ public final class Wasm3Native {
         NativeLibraryLoader.ensureLoaded();
     }
 
-    private Wasm3Native() {
-    }
+    private Wasm3Native() {}
 
     /** Forces class initialization (and therefore native library loading). */
     public static void ensureInitialized() {
@@ -32,9 +46,9 @@ public final class Wasm3Native {
     /**
      * Parses a module from the given bytes; throws on error.
      *
-     * @return a two-element array {@code {modulePtr, bufferPtr}}; the buffer backs the
-     *     module's wasm bytes and must be released with {@link #freeBuffer(long)} once the
-     *     owning module/runtime is freed
+     * @return a two-element array {@code {modulePtr, bufferPtr}}; the buffer backs the module's
+     *     wasm bytes and must be released with {@link #freeBuffer(long)} once the owning
+     *     module/runtime is freed
      */
     public static native long[] parseModule(long environment, byte[] wasm);
 
@@ -47,7 +61,9 @@ public final class Wasm3Native {
     /** Loads (instantiates) a parsed module into a runtime; throws on error. */
     public static native void loadModule(long runtime, long module);
 
-    /** @return the function handle, or 0 if no such export exists. */
+    /**
+     * @return the function handle, or 0 if no such export exists.
+     */
     public static native long findFunction(long runtime, String name);
 
     public static native int getArgCount(long function);
@@ -59,8 +75,8 @@ public final class Wasm3Native {
     public static native int getRetType(long function, int index);
 
     /**
-     * Calls a function with raw 64-bit argument patterns and returns raw 64-bit result
-     * patterns; throws on error.
+     * Calls a function with raw 64-bit argument patterns and returns raw 64-bit result patterns;
+     * throws on error.
      */
     public static native long[] call(long function, long[] rawArgs);
 
@@ -68,7 +84,9 @@ public final class Wasm3Native {
 
     public static native int memorySize(long runtime);
 
-    /** @return a direct {@link java.nio.ByteBuffer} over the runtime memory, or null if none. */
+    /**
+     * @return a direct {@link java.nio.ByteBuffer} over the runtime memory, or null if none.
+     */
     public static native java.nio.ByteBuffer memoryBuffer(long runtime);
 
     public static native byte[] memoryRead(long runtime, long offset, int length);
@@ -77,7 +95,9 @@ public final class Wasm3Native {
 
     // --- Globals ---
 
-    /** @return the global handle, or 0 if no such export exists. */
+    /**
+     * @return the global handle, or 0 if no such export exists.
+     */
     public static native long findGlobal(long module, String name);
 
     public static native int globalType(long global);
@@ -95,6 +115,8 @@ public final class Wasm3Native {
     public static native void linkRawFunction(
             long module, String moduleName, String functionName, String signature, int id);
 
-    /** @return the wasm3 engine version string. */
+    /**
+     * @return the wasm3 engine version string.
+     */
     public static native String version();
 }

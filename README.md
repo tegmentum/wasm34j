@@ -46,14 +46,37 @@ git clone --recurse-submodules <repo-url>
 # or, if already cloned:
 git submodule update --init --recursive
 
-mvn clean install
+./mvnw clean install
 ```
 
 To skip the native CMake build and use a pre-built library on `java.library.path`:
 
 ```bash
-mvn -Pskip-native install
+./mvnw -Pskip-native install
 ```
+
+### Quality gates
+
+Static analysis (Spotless / google-java-format AOSP, Checkstyle, SpotBugs + findsecbugs) is
+off by default so the normal build stays fast. Run it explicitly:
+
+```bash
+./mvnw -Pquality verify     # check formatting + lint + bug patterns
+./mvnw spotless:apply       # auto-format the source tree
+```
+
+### Cross-platform builds and releases
+
+The native library is built per-platform on each OS's own runner in CI (see
+`.github/workflows/ci.yml`); a local build only produces the host platform's library. The
+release workflow downloads every platform's library and bundles them all into a single set
+of jars (under `META-INF/native/<platform>/`), so one published artifact works everywhere.
+
+## Use from webassembly4j
+
+A `wasm3-provider` module in [`webassembly4j`](https://github.com/tegmentum/webassembly4j)
+adapts this library to the `EngineProvider` SPI, so wasm3 can be selected as a backend
+there. It bundles both wasm34j backends and prefers Panama on Java 22+, falling back to JNI.
 
 ## Usage
 

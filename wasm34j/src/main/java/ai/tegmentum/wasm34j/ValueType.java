@@ -1,8 +1,21 @@
+/*
+ * Copyright (c) 2026 Tegmentum AI, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package ai.tegmentum.wasm34j;
 
-/**
- * WebAssembly value types as exposed by wasm34j.
- */
+/** WebAssembly value types as exposed by wasm34j. */
 public enum ValueType {
     I32,
     I64,
@@ -16,8 +29,7 @@ public enum ValueType {
     /**
      * Maps a wasm3 {@code M3ValueType} code to a {@link ValueType}.
      *
-     * <p>wasm3 codes: 1=i32, 2=i64, 3=f32, 4=f64; anything else is reported as
-     * {@link #UNKNOWN}.
+     * <p>wasm3 codes: 1=i32, 2=i64, 3=f32, 4=f64; anything else is reported as {@link #UNKNOWN}.
      *
      * @param code the native type code
      * @return the corresponding value type
@@ -71,7 +83,8 @@ public enum ValueType {
             case F64:
                 return 'F';
             default:
-                throw new IllegalArgumentException("No wasm3 signature char for value type " + this);
+                throw new IllegalArgumentException(
+                        "No wasm3 signature char for value type " + this);
         }
     }
 }

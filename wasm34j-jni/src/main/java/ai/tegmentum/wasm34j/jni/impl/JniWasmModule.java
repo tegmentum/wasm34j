@@ -1,4 +1,21 @@
+/*
+ * Copyright (c) 2026 Tegmentum AI, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package ai.tegmentum.wasm34j.jni.impl;
+
+import java.util.List;
 
 import ai.tegmentum.wasm34j.HostFunctionDefinition;
 import ai.tegmentum.wasm34j.WasmImports;
@@ -8,16 +25,14 @@ import ai.tegmentum.wasm34j.exception.WasmException;
 import ai.tegmentum.wasm34j.jni.internal.HostFunctionRegistry;
 import ai.tegmentum.wasm34j.jni.internal.Wasm3Native;
 
-import java.util.List;
-
 /**
- * JNI-backed {@link WebAssemblyModule}, wrapping a parsed wasm3 {@code IM3Module} handle
- * plus the native byte buffer backing its wasm bytes.
+ * JNI-backed {@link WebAssemblyModule}, wrapping a parsed wasm3 {@code IM3Module} handle plus the
+ * native byte buffer backing its wasm bytes.
  *
- * <p>wasm3 ties a module to a single runtime and requires host imports to be linked on the
- * module before it is loaded; both happen in {@link #instantiate(WasmImports)}, which
- * transfers ownership of the module, byte buffer, and host-function registrations to the
- * resulting instance. A module may therefore only be instantiated once.
+ * <p>wasm3 ties a module to a single runtime and requires host imports to be linked on the module
+ * before it is loaded; both happen in {@link #instantiate(WasmImports)}, which transfers ownership
+ * of the module, byte buffer, and host-function registrations to the resulting instance. A module
+ * may therefore only be instantiated once.
  */
 final class JniWasmModule implements WebAssemblyModule {
 

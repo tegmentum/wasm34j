@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2026 Tegmentum AI, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package ai.tegmentum.wasm34j;
 
 import java.util.Objects;
@@ -5,8 +20,8 @@ import java.util.Objects;
 /**
  * An immutable, typed WebAssembly value.
  *
- * <p>The underlying value is stored as the raw 64-bit pattern that crosses the native
- * boundary: i32/f32 occupy the low 32 bits, i64/f64 occupy all 64 bits.
+ * <p>The underlying value is stored as the raw 64-bit pattern that crosses the native boundary:
+ * i32/f32 occupy the low 32 bits, i64/f64 occupy all 64 bits.
  */
 public final class WasmValue {
 
@@ -35,8 +50,8 @@ public final class WasmValue {
     }
 
     /**
-     * Reconstructs a value from a type and its raw 64-bit pattern (as returned by the
-     * native call boundary).
+     * Reconstructs a value from a type and its raw 64-bit pattern (as returned by the native call
+     * boundary).
      *
      * @param type the value type
      * @param bits the raw bit pattern
@@ -50,7 +65,9 @@ public final class WasmValue {
         return type;
     }
 
-    /** @return the raw 64-bit pattern that crosses the native boundary. */
+    /**
+     * @return the raw 64-bit pattern that crosses the native boundary.
+     */
     public long rawBits() {
         return bits;
     }
@@ -72,9 +89,9 @@ public final class WasmValue {
     }
 
     /**
-     * @return the value boxed as the natural Java type for {@link #type()}
-     *     ({@link Integer}, {@link Long}, {@link Float}, {@link Double}), or the raw
-     *     {@code long} bits for non-numeric types.
+     * @return the value boxed as the natural Java type for {@link #type()} ({@link Integer}, {@link
+     *     Long}, {@link Float}, {@link Double}), or the raw {@code long} bits for non-numeric
+     *     types.
      */
     public Object boxed() {
         switch (type) {

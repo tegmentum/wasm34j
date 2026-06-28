@@ -1,7 +1,27 @@
+/*
+ * Copyright (c) 2026 Tegmentum AI, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package ai.tegmentum.wasm34j.panama;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.io.IOException;
+import java.io.InputStream;
+
+import org.junit.jupiter.api.Test;
 
 import ai.tegmentum.wasm34j.FunctionType;
 import ai.tegmentum.wasm34j.RuntimeFactory;
@@ -14,11 +34,6 @@ import ai.tegmentum.wasm34j.WebAssemblyMemory;
 import ai.tegmentum.wasm34j.WebAssemblyModule;
 import ai.tegmentum.wasm34j.WebAssemblyRuntime;
 import ai.tegmentum.wasm34j.exception.WasmException;
-
-import java.io.IOException;
-import java.io.InputStream;
-
-import org.junit.jupiter.api.Test;
 
 /** Exercises the broader API (memory, globals, host functions) on the Panama backend. */
 class PanamaFeaturesTest {
@@ -84,23 +99,27 @@ class PanamaFeaturesTest {
         final byte[] wasm = load("/host.wasm");
         final int[] logged = {-1};
 
-        final WasmImports imports = WasmImports.builder()
-                .function(
-                        "env",
-                        "add",
-                        FunctionType.of(
-                                new ValueType[] {ValueType.I32, ValueType.I32},
-                                new ValueType[] {ValueType.I32}),
-                        args -> new WasmValue[] {WasmValue.i32(args[0].asInt() + args[1].asInt())})
-                .function(
-                        "env",
-                        "log",
-                        FunctionType.of(new ValueType[] {ValueType.I32}, new ValueType[0]),
-                        args -> {
-                            logged[0] = args[0].asInt();
-                            return new WasmValue[0];
-                        })
-                .build();
+        final WasmImports imports =
+                WasmImports.builder()
+                        .function(
+                                "env",
+                                "add",
+                                FunctionType.of(
+                                        new ValueType[] {ValueType.I32, ValueType.I32},
+                                        new ValueType[] {ValueType.I32}),
+                                args ->
+                                        new WasmValue[] {
+                                            WasmValue.i32(args[0].asInt() + args[1].asInt())
+                                        })
+                        .function(
+                                "env",
+                                "log",
+                                FunctionType.of(new ValueType[] {ValueType.I32}, new ValueType[0]),
+                                args -> {
+                                    logged[0] = args[0].asInt();
+                                    return new WasmValue[0];
+                                })
+                        .build();
 
         try (WebAssemblyRuntime runtime = RuntimeFactory.create();
                 WebAssemblyModule module = runtime.compile(wasm);

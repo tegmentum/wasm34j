@@ -1,4 +1,21 @@
+/*
+ * Copyright (c) 2026 Tegmentum AI, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package ai.tegmentum.wasm34j.jni.impl;
+
+import java.util.Optional;
 
 import ai.tegmentum.wasm34j.WasmGlobal;
 import ai.tegmentum.wasm34j.WebAssemblyFunction;
@@ -7,15 +24,13 @@ import ai.tegmentum.wasm34j.WebAssemblyMemory;
 import ai.tegmentum.wasm34j.jni.internal.HostFunctionRegistry;
 import ai.tegmentum.wasm34j.jni.internal.Wasm3Native;
 
-import java.util.Optional;
-
 /**
- * JNI-backed {@link WebAssemblyInstance}, wrapping a wasm3 {@code IM3Runtime} handle into
- * which a module has been loaded, along with the module handle (for global lookups), the
- * byte buffer backing the module, and any host-function registry ids.
+ * JNI-backed {@link WebAssemblyInstance}, wrapping a wasm3 {@code IM3Runtime} handle into which a
+ * module has been loaded, along with the module handle (for global lookups), the byte buffer
+ * backing the module, and any host-function registry ids.
  *
- * <p>Closing frees the native runtime (which frees the loaded module), then the byte
- * buffer, and unregisters host functions.
+ * <p>Closing frees the native runtime (which frees the loaded module), then the byte buffer, and
+ * unregisters host functions.
  */
 final class JniWasmInstance implements WebAssemblyInstance {
 
