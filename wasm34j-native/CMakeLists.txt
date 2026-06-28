@@ -9,8 +9,15 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Locate the JNI headers (jni.h / jni_md.h). Honors JAVA_HOME.
-find_package(JNI REQUIRED)
+# Locate the JNI headers (jni.h / jni_md.h).
+# On Android the NDK provides jni.h in its sysroot (and there is no JDK), so find_package(JNI)
+# would fail; the desktop/server build honors JAVA_HOME.
+if(ANDROID)
+    set(WASM34J_JNI_INCLUDE_DIRS "")
+else()
+    find_package(JNI REQUIRED)
+    set(WASM34J_JNI_INCLUDE_DIRS ${JNI_INCLUDE_DIRS})
+endif()
 
 # wasm3 interpreter sources (vendored as a git submodule, pinned to a release tag).
 set(WASM3_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/wasm3/source)
@@ -23,7 +30,7 @@ add_library(wasm34j_native SHARED
 
 target_include_directories(wasm34j_native PRIVATE
     ${WASM3_SOURCE_DIR}
-    ${JNI_INCLUDE_DIRS}
+    ${WASM34J_JNI_INCLUDE_DIRS}
 )
 
 # Emit the shared library directly into the build root (no per-config subdir),

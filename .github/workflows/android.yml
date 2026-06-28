@@ -1,0 +1,86 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Build the AAR (all ABIs) via Gradle + the Android NDK, reusing the wasm3 CMake build.
+  build-aar:
+    name: Build AAR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install wasm34j + wasm34j-jni to the local Maven repo
+        run: ./mvnw -B -ntp -Pskip-native -DskipTests install -pl wasm34j-jni -am
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake
+        run: |
+          sdkmanager --install "ndk;27.0.12077973" "cmake;3.22.1" >/dev/null
+
+      - name: Build AAR
+        working-directory: wasm34j-android
+        run: ./gradlew --no-daemon assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm34j-android-aar
+          path: wasm34j-android/build/outputs/aar/*.aar
+          if-no-files-found: error
+
+  # Run the on-device smoke test on an x86_64 emulator.
+  instrumented-test:
+    name: Instrumented test (API ${{ matrix.api }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 34]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install wasm34j + wasm34j-jni to the local Maven repo
+        run: ./mvnw -B -ntp -Pskip-native -DskipTests install -pl wasm34j-jni -am
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake
+        run: sdkmanager --install "ndk;27.0.12077973" "cmake;3.22.1" >/dev/null
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run connected tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          working-directory: wasm34j-android
+          script: ./gradlew --no-daemon connectedDebugAndroidTest

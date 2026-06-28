@@ -72,6 +72,27 @@ The native library is built per-platform on each OS's own runner in CI (see
 release workflow downloads every platform's library and bundles them all into a single set
 of jars (under `META-INF/native/<platform>/`), so one published artifact works everywhere.
 
+## Android
+
+Android's ART runtime has no `java.lang.foreign`, so only the **JNI** backend is used there.
+The `wasm34j-android` module is a Gradle Android library that builds the wasm3 native library
+per ABI (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`) with the NDK — reusing the same
+`wasm34j-native/CMakeLists.txt` via `externalNativeBuild` — and packages it into an AAR that
+re-exports `wasm34j` + `wasm34j-jni`.
+
+Requirements: Android SDK + NDK (r27+ recommended for 16 KB page alignment), `minSdk 26`,
+and core library desugaring (enabled in the module). Build it after installing the Java
+artifacts to the local Maven repo:
+
+```bash
+./mvnw -Pskip-native -DskipTests install -pl wasm34j-jni -am   # publish jars to ~/.m2
+cd wasm34j-android && ./gradlew assembleRelease                 # -> build/outputs/aar/
+./gradlew connectedDebugAndroidTest                            # on-device smoke test
+```
+
+Consuming app: depend on the AAR; `System.loadLibrary` resolves the bundled `.so` from the
+APK, so no runtime extraction is involved. See `.github/workflows/android.yml`.
+
 ## Use from webassembly4j
 
 A `wasm3-provider` module in [`webassembly4j`](https://github.com/tegmentum/webassembly4j)

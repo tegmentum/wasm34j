@@ -11,6 +11,11 @@ build/
 *.dylib
 *.dll
 
+# Gradle / Android
+.gradle/
+local.properties
+*.aar
+
 # IDE
 .idea/
 *.iml
