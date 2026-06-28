@@ -38,7 +38,7 @@
     <properties>
         <!-- Version Configuration: revision = <wasm3 version>-<wasm34j version> -->
         <wasm3.version>0.5.0</wasm3.version>
-        <wasm34j.version>1.0.0-SNAPSHOT</wasm34j.version>
+        <wasm34j.version>1.0.0</wasm34j.version>
         <revision>${wasm3.version}-${wasm34j.version}</revision>
 
         <!-- Build Configuration -->
