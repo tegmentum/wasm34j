@@ -3,7 +3,8 @@ plugins {
 }
 
 // Keep in sync with the Maven build's revision (wasm3.version-wasm34j.version).
-val wasm34jVersion = "0.5.0-1.0.0-SNAPSHOT"
+// Overridable from CI/dev with -Pwasm34jVersion=… so it tracks SNAPSHOT vs release builds.
+val wasm34jVersion = (findProperty("wasm34jVersion") as String?) ?: "0.5.0-1.0.0"
 
 android {
     namespace = "ai.tegmentum.wasm34j.android"

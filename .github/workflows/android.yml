@@ -28,6 +28,10 @@ jobs:
       - name: Install wasm34j + wasm34j-jni to the local Maven repo
         run: ./mvnw -B -ntp -Pskip-native -DskipTests install -pl wasm34j-jni -am
 
+      - name: Resolve wasm34j version
+        id: ver
+        run: echo "v=$(./mvnw -q --non-recursive help:evaluate -Dexpression=project.version -DforceStdout)" >> "$GITHUB_OUTPUT"
+
       - uses: android-actions/setup-android@v3
 
       - name: Install NDK and CMake
@@ -36,7 +40,7 @@ jobs:
 
       - name: Build AAR
         working-directory: wasm34j-android
-        run: ./gradlew --no-daemon assembleRelease
+        run: ./gradlew --no-daemon assembleRelease -Pwasm34jVersion=${{ steps.ver.outputs.v }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -65,6 +69,10 @@ jobs:
       - name: Install wasm34j + wasm34j-jni to the local Maven repo
         run: ./mvnw -B -ntp -Pskip-native -DskipTests install -pl wasm34j-jni -am
 
+      - name: Resolve wasm34j version
+        id: ver
+        run: echo "v=$(./mvnw -q --non-recursive help:evaluate -Dexpression=project.version -DforceStdout)" >> "$GITHUB_OUTPUT"
+
       - uses: android-actions/setup-android@v3
 
       - name: Install NDK and CMake
@@ -83,4 +91,4 @@ jobs:
           api-level: ${{ matrix.api }}
           arch: x86_64
           working-directory: wasm34j-android
-          script: ./gradlew --no-daemon connectedDebugAndroidTest
+          script: ./gradlew --no-daemon connectedDebugAndroidTest -Pwasm34jVersion=${{ steps.ver.outputs.v }}

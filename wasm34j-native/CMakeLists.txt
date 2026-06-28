@@ -38,4 +38,8 @@ target_include_directories(wasm34j_native PRIVATE
 set_target_properties(wasm34j_native PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    # On Windows a DLL exports nothing unless marked dllexport. The JNI glue is exported via
+    # JNIEXPORT, but the Panama backend looks up the raw m3_* symbols, which need exporting too.
+    # macOS/Linux export all symbols by default, so this only matters on Windows.
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
 )
